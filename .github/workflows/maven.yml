@@ -14,8 +14,8 @@ env:
 jobs:
   build:
     runs-on: self-hosted
+    # set ACTUAL_BRANCH from github.ref_name (no shell expansion needed)
     env:
-      # keep ACTUAL_BRANCH available for scripts
       ACTUAL_BRANCH: ${{ github.ref_name || 'dev' }}
 
     steps:
@@ -24,8 +24,39 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Determine branch (set ACTUAL_BRANCH)
-        id: set-branch
+      - name: Show branch (no shell parsing)
         run: |
-          BRANCH_NAME="${GITHUB_REF##*/}"
-          echo "Detected branch: $BRANCH_N_
+          echo "github.ref_name = '${{ github.ref_name }}'"
+          echo "ACTUAL_BRANCH = '${{ env.ACTUAL_BRANCH }}'"
+
+      - name: Cache Maven local repository
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: m2-cache-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}-${{ github.ref_name }}
+          restore-keys: |
+            m2-cache-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}-
+            m2-cache-${{ runner.os }}-
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Maven build (skip tests)
+        if: ${{ github.ref_name == 'dev' || github.ref_name == 'uat' || github.ref_name == 'main' }}
+        working-directory: ${{ env.APP_DIR }}
+        run: mvn -B clean package -DskipTests
+
+      - name: Update dependency graph
+        if: ${{ github.ref_name == 'dev' || github.ref_name == 'uat' || github.ref_name == 'main' }}
+        working-directory: ${{ env.APP_DIR }}
+        uses: advanced-security/maven-dependency-submission-action@571e99aab1055c2e71a1e2309b9691de18d6b7d6
+
+      - name: List built artifacts (debug)
+        if: ${{ github.ref_name == 'dev' || github.ref_name == 'uat' || github.ref_name == 'main' }}
+        run: |
+          echo "Listing ${APP_DIR}/target:"
+          ls -la "${APP_DIR}/target" || true
