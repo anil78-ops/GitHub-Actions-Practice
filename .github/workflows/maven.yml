@@ -1,10 +1,9 @@
 name: Java CI with Maven
 
+# Trigger only on main branch
 on:
   push:
     branches:
-      - dev
-      - uat
       - main
   workflow_dispatch:
 
@@ -13,20 +12,15 @@ env:
 
 jobs:
   build:
-    runs-on: self-hosted
-    env:
-      ACTUAL_BRANCH: ${{ github.ref_name }}
+    runs-on: self-hosted      # Change to "ubuntu-latest" if NOT using self-hosted runners
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Show detected branch
+      - name: Show branch info
         run: |
-          echo "github.ref_name = '${{ github.ref_name }}'"
-          echo "ACTUAL_BRANCH = '${{ env.ACTUAL_BRANCH }}'"
+          echo "Current branch = ${{ github.ref_name }}"
 
       - name: Cache Maven dependencies
         uses: actions/cache@v4
@@ -44,17 +38,10 @@ jobs:
           cache: maven
 
       - name: Maven Build (skip tests)
-        if: ${{ github.ref_name == 'dev' || github.ref_name == 'uat' || github.ref_name == 'main' }}
         working-directory: ${{ env.APP_DIR }}
         run: mvn -B clean package -DskipTests
 
-      - name: Update dependency graph
-        if: ${{ github.ref_name == 'dev' || github.ref_name == 'uat' || github.ref_name == 'main' }}
-        working-directory: ${{ env.APP_DIR }}
-        uses: advanced-security/maven-dependency-submission-action@571e99aab1055c2e71a1e2309b9691de18d6b7d6
-
       - name: Show built artifacts
-        if: ${{ github.ref_name == 'dev' || github.ref_name == 'uat' || github.ref_name == 'main' }}
         run: |
           echo "Contents of app/target:"
           ls -la app/target || true
